@@ -74,7 +74,7 @@ const LEADERS = [
   { rank: 10, name: "ВЫ",        coins: 1500,  weapons: 0,  legendary: 0 },
 ];
 
-type Tab = "home" | "spin" | "shop" | "inventory" | "quests" | "profile" | "leaderboard";
+type Tab = "home" | "spin" | "shop" | "inventory" | "upgrade" | "quests" | "profile" | "leaderboard";
 
 function getRarityByChance(): Rarity {
   const roll = Math.random() * 100;
@@ -144,7 +144,45 @@ export default function Index() {
   const [totalSpins, setTotalSpins] = useState(0);
   const [soldCount, setSoldCount] = useState(0);
   const [notification, setNotification] = useState<{ text: string; type: "success" | "error" | "info" } | null>(null);
+  const [upgradeWeapon, setUpgradeWeapon] = useState<Weapon | null>(null);
+  const [upgradeState, setUpgradeState] = useState<"idle" | "animating" | "success" | "fail">("idle");
   const SPIN_COST = 150;
+
+  const UPGRADE_RARITIES: Rarity[] = ["common", "rare", "epic"];
+  const NEXT_RARITY: Record<Rarity, Rarity | null> = { common: "rare", rare: "epic", epic: "legendary", legendary: null };
+  const UPGRADE_COST: Record<Rarity, number> = { common: 100, rare: 400, epic: 1200, legendary: 0 };
+
+  const handleUpgrade = () => {
+    if (!upgradeWeapon) return;
+    const nextRarity = NEXT_RARITY[upgradeWeapon.rarity];
+    if (!nextRarity) return;
+    const cost = UPGRADE_COST[upgradeWeapon.rarity];
+    if (coins < cost) { notify("Недостаточно монет!", "error"); return; }
+    setCoins(c => c - cost);
+    setUpgradeState("animating");
+    setTimeout(() => {
+      const success = Math.random() < 0.25;
+      if (success) {
+        const pool = ALL_WEAPONS.filter(w => w.rarity === nextRarity);
+        const newW: Weapon = { ...pool[Math.floor(Math.random() * pool.length)], id: Date.now() };
+        setInventory(prev => {
+          const next = prev.filter(w => w.id !== upgradeWeapon!.id);
+          next.push(newW);
+          triggerQuestCheck(next, soldCount, nextRarity);
+          return next;
+        });
+        setUpgradeWeapon(newW);
+        setUpgradeState("success");
+        notify(`🔥 УЛУЧШЕНО до ${RARITY_CONFIG[nextRarity].label}!`, "success");
+      } else {
+        setInventory(prev => prev.filter(w => w.id !== upgradeWeapon!.id));
+        setUpgradeWeapon(null);
+        setUpgradeState("fail");
+        notify("💀 Оружие уничтожено при улучшении!", "error");
+      }
+      setTimeout(() => setUpgradeState("idle"), 2000);
+    }, 2000);
+  };
 
   const notify = (text: string, type: "success" | "error" | "info" = "info") => {
     setNotification({ text, type });
@@ -230,6 +268,7 @@ export default function Index() {
     { id: "spin",        label: "Прокрут.", icon: "RotateCw" },
     { id: "shop",        label: "Магазин",  icon: "ShoppingBag" },
     { id: "inventory",   label: "Инвент.",  icon: "Package" },
+    { id: "upgrade",     label: "Улучш.",   icon: "TrendingUp" },
     { id: "quests",      label: "Задания",  icon: "Target" },
     { id: "profile",     label: "Профиль",  icon: "User" },
     { id: "leaderboard", label: "Лидеры",   icon: "Trophy" },
@@ -580,6 +619,146 @@ export default function Index() {
                 <p className="text-gray-700 text-sm font-rajdhani">Начни прокрутку для статистики</p>
               )}
             </div>
+          </div>
+        )}
+
+        {/* ─── UPGRADE ─── */}
+        {tab === "upgrade" && (
+          <div className="p-4 animate-fade-in">
+            <h2 className="font-orbitron font-black text-xl mb-0.5" style={{ color: "#ff6b00", textShadow: "0 0 12px rgba(255,107,0,0.6)" }}>УЛУЧШЕНИЕ</h2>
+            <p className="text-gray-500 text-sm mb-5 font-rajdhani">
+              <span style={{ color: "#00ff88" }}>25% успех</span> — повышает редкость · <span style={{ color: "#ff0055" }}>75% провал</span> — оружие уничтожается
+            </p>
+
+            {/* Weapon selector */}
+            <div className="rounded-sm p-4 mb-4" style={{ background: "rgba(10,15,28,0.95)", border: "1px solid rgba(255,107,0,0.25)" }}>
+              <div className="font-orbitron font-bold text-xs mb-3" style={{ color: "#ff6b00" }}>ВЫБЕРИ ОРУЖИЕ ДЛЯ УЛУЧШЕНИЯ</div>
+              {inventory.filter(w => UPGRADE_RARITIES.includes(w.rarity)).length === 0 ? (
+                <div className="text-center py-6">
+                  <div className="text-4xl mb-2 opacity-20">⚗️</div>
+                  <p className="text-gray-600 text-sm font-rajdhani">Нет оружия доступного для улучшения</p>
+                  <p className="text-gray-700 text-xs font-rajdhani mt-1">Легендарное оружие улучшить нельзя</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-2 max-h-64 overflow-y-auto">
+                  {inventory.filter(w => UPGRADE_RARITIES.includes(w.rarity)).map(w => {
+                    const r = RARITY_CONFIG[w.rarity];
+                    const selected = upgradeWeapon?.id === w.id;
+                    return (
+                      <button key={w.id} onClick={() => { setUpgradeWeapon(selected ? null : w); setUpgradeState("idle"); }}
+                        className="rounded-sm p-2 text-left transition-all duration-200"
+                        style={{ background: selected ? `${r.color}18` : "rgba(7,11,20,0.8)", border: `1px solid ${selected ? r.color : `${r.color}44`}`, boxShadow: selected ? `0 0 12px ${r.color}44` : "none" }}>
+                        <div className="flex items-center gap-2">
+                          <img src={w.image} alt={w.name} className="w-8 h-8 object-cover rounded-sm flex-shrink-0" style={{ filter: `saturate(1.3)` }} />
+                          <div className="min-w-0">
+                            <div className="font-orbitron font-bold truncate" style={{ fontSize: "9px", color: r.color }}>{w.name}</div>
+                            <div className="font-rajdhani text-gray-600" style={{ fontSize: "10px" }}>{r.label}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Upgrade panel */}
+            {upgradeWeapon && (
+              <div className="rounded-sm p-5" style={{ background: "linear-gradient(135deg, rgba(255,107,0,0.06), rgba(255,0,85,0.06))", border: "1px solid rgba(255,107,0,0.4)", boxShadow: "0 0 20px rgba(255,107,0,0.1)" }}>
+                {/* Before → After */}
+                <div className="flex items-center justify-center gap-4 mb-5">
+                  {/* Current */}
+                  <div className="text-center flex-1">
+                    <div className="inline-block p-1 rounded-sm mb-2"
+                      style={{ border: `2px solid ${RARITY_CONFIG[upgradeWeapon.rarity].color}`, boxShadow: `0 0 10px ${RARITY_CONFIG[upgradeWeapon.rarity].color}44` }}>
+                      <img src={upgradeWeapon.image} alt={upgradeWeapon.name} className="w-16 h-16 object-cover rounded-sm" />
+                    </div>
+                    <div className="font-orbitron font-bold" style={{ fontSize: "9px", color: RARITY_CONFIG[upgradeWeapon.rarity].color }}>{upgradeWeapon.name}</div>
+                    <div className="font-rajdhani text-xs mt-0.5" style={{ color: RARITY_CONFIG[upgradeWeapon.rarity].color }}>{RARITY_CONFIG[upgradeWeapon.rarity].label}</div>
+                  </div>
+
+                  {/* Arrow + chance */}
+                  <div className="flex flex-col items-center gap-1 flex-shrink-0">
+                    <div className="font-orbitron font-black text-xs" style={{ color: "#00ff88" }}>25%</div>
+                    <Icon name="ArrowRight" size={22} style={{ color: "#ff6b00", filter: "drop-shadow(0 0 6px rgba(255,107,0,0.8))" }} />
+                    <div className="font-orbitron font-black text-xs" style={{ color: "#ff0055" }}>75%</div>
+                  </div>
+
+                  {/* Next rarity */}
+                  {NEXT_RARITY[upgradeWeapon.rarity] && (() => {
+                    const nextR = NEXT_RARITY[upgradeWeapon.rarity]!;
+                    return (
+                      <div className="text-center flex-1">
+                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-sm mb-2"
+                          style={{ border: `2px dashed ${RARITY_CONFIG[nextR].color}88`, background: `${RARITY_CONFIG[nextR].color}0a` }}>
+                          <div className="text-2xl opacity-60">?</div>
+                        </div>
+                        <div className="font-orbitron font-bold" style={{ fontSize: "9px", color: RARITY_CONFIG[nextR].color }}>УЛУЧШЕНИЕ</div>
+                        <div className="font-rajdhani text-xs mt-0.5" style={{ color: RARITY_CONFIG[nextR].color }}>{RARITY_CONFIG[nextR].label}</div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Risk bar */}
+                <div className="mb-4">
+                  <div className="flex rounded-full overflow-hidden h-2 mb-2">
+                    <div className="h-full" style={{ width: "25%", background: "#00ff88", boxShadow: "0 0 8px #00ff88" }} />
+                    <div className="h-full" style={{ width: "75%", background: "#ff0055", boxShadow: "0 0 8px #ff0055" }} />
+                  </div>
+                  <div className="flex justify-between font-rajdhani" style={{ fontSize: "10px" }}>
+                    <span style={{ color: "#00ff88" }}>✓ Успех 25%</span>
+                    <span style={{ color: "#ff0055" }}>✗ Уничтожение 75%</span>
+                  </div>
+                </div>
+
+                {/* Animate state */}
+                {upgradeState === "animating" && (
+                  <div className="text-center mb-4">
+                    <div className="relative w-16 h-16 mx-auto">
+                      <div className="absolute inset-0 rounded-full border-2 border-transparent animate-spin"
+                        style={{ borderTopColor: "#ff6b00", boxShadow: "0 0 16px rgba(255,107,0,0.7)", animationDuration: "0.4s" }} />
+                      <div className="absolute inset-3 flex items-center justify-center">
+                        <Icon name="Zap" size={18} style={{ color: "#ff6b00", filter: "drop-shadow(0 0 6px #ff6b00)" }} />
+                      </div>
+                    </div>
+                    <p className="font-orbitron text-xs mt-2 animate-pulse" style={{ color: "#ff6b00" }}>УЛУЧШЕНИЕ...</p>
+                  </div>
+                )}
+                {upgradeState === "success" && (
+                  <div className="text-center mb-4 animate-scale-in">
+                    <div className="text-3xl mb-1">🔥</div>
+                    <p className="font-orbitron font-black text-sm" style={{ color: "#00ff88", textShadow: "0 0 12px #00ff88" }}>УСПЕХ!</p>
+                  </div>
+                )}
+                {upgradeState === "fail" && (
+                  <div className="text-center mb-4 animate-scale-in">
+                    <div className="text-3xl mb-1">💀</div>
+                    <p className="font-orbitron font-black text-sm" style={{ color: "#ff0055", textShadow: "0 0 12px #ff0055" }}>УНИЧТОЖЕНО</p>
+                  </div>
+                )}
+
+                {/* Cost + button */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="font-rajdhani text-sm" style={{ color: "#9ca3af" }}>
+                    Стоимость: <span className="font-bold" style={{ color: "#ffd700" }}>{UPGRADE_COST[upgradeWeapon.rarity]}◈</span>
+                  </div>
+                  <button
+                    onClick={handleUpgrade}
+                    disabled={upgradeState === "animating" || coins < UPGRADE_COST[upgradeWeapon.rarity]}
+                    className="rounded-sm font-orbitron font-black text-xs tracking-wider px-5 py-2.5 transition-all duration-200"
+                    style={{
+                      background: upgradeState === "animating" ? "rgba(255,107,0,0.1)" : "linear-gradient(135deg, rgba(255,107,0,0.25), rgba(255,0,85,0.25))",
+                      border: "1px solid #ff6b00",
+                      color: upgradeState === "animating" ? "#4b5563" : "#ff6b00",
+                      boxShadow: upgradeState !== "animating" ? "0 0 16px rgba(255,107,0,0.4)" : "none",
+                      cursor: upgradeState === "animating" ? "not-allowed" : "pointer"
+                    }}>
+                    ⚗️ УЛУЧШИТЬ
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
