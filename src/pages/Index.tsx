@@ -793,23 +793,26 @@ export default function Index() {
       </main>
 
       {/* Bottom Nav */}
-      <nav className="fixed bottom-0 left-0 right-0 z-40 flex items-center justify-around px-1 pt-2 pb-3"
+      <nav className="fixed bottom-0 left-0 right-0 z-40 pt-2 pb-3"
         style={{ background: "rgba(7,11,20,0.97)", borderTop: "1px solid rgba(0,245,255,0.2)", backdropFilter: "blur(12px)" }}>
-        {navItems.map(item => {
-          const active = tab === item.id;
-          return (
-            <button key={item.id} onClick={() => setTab(item.id)}
-              className="flex flex-col items-center gap-0.5 flex-1 py-1 transition-all duration-200">
-              <div className="relative">
-                <Icon name={item.icon as IconName} size={19} style={{ color: active ? "#00f5ff" : "#4b5563", filter: active ? "drop-shadow(0 0 5px rgba(0,245,255,0.9))" : "none" }} />
-                {active && <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: "#00f5ff", boxShadow: "0 0 4px #00f5ff" }} />}
-              </div>
-              <span className="font-rajdhani font-semibold" style={{ fontSize: "9px", color: active ? "#00f5ff" : "#4b5563", textShadow: active ? "0 0 6px rgba(0,245,255,0.7)" : "none" }}>
-                {item.label}
-              </span>
-            </button>
-          );
-        })}
+        <div className="flex items-center overflow-x-auto scrollbar-none px-1" style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}>
+          {navItems.map(item => {
+            const active = tab === item.id;
+            return (
+              <button key={item.id} onClick={() => setTab(item.id)}
+                className="flex flex-col items-center gap-0.5 flex-shrink-0 py-1 transition-all duration-200"
+                style={{ minWidth: "56px", padding: "4px 6px" }}>
+                <div className="relative">
+                  <Icon name={item.icon as IconName} size={19} style={{ color: active ? "#00f5ff" : "#4b5563", filter: active ? "drop-shadow(0 0 5px rgba(0,245,255,0.9))" : "none" }} />
+                  {active && <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full" style={{ background: "#00f5ff", boxShadow: "0 0 4px #00f5ff" }} />}
+                </div>
+                <span className="font-rajdhani font-semibold" style={{ fontSize: "9px", color: active ? "#00f5ff" : "#4b5563", textShadow: active ? "0 0 6px rgba(0,245,255,0.7)" : "none" }}>
+                  {item.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </nav>
     </div>
   );
